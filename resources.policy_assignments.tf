@@ -3,7 +3,7 @@ resource "azurerm_management_group_policy_assignment" "enterprise_scale" {
 
   # Mandatory resource attributes
   # The policy assignment name length must not exceed '24' characters, but Terraform plan is unable to validate this in the plan stage. The following logic forces an error during plan if an invalid name length is specified.
-  name                 = tonumber(length(each.value.template.name) > 24 ? "The policy assignment name '${each.value.template.name}' is invalid. The policy assignment name length must not exceed '24' characters." : length(each.value.template.name)) > 24 ? null : each.value.template.name
+  name                 = tonumber(length(each.value.template.name) > 90 ? "The policy assignment name '${each.value.template.name}' is invalid. The policy assignment name length must not exceed '24' characters." : length(each.value.template.name)) > 90 ? null : each.value.template.name
   management_group_id  = each.value.scope_id
   policy_definition_id = each.value.template.properties.policyDefinitionId
 

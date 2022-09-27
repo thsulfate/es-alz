@@ -272,24 +272,30 @@ locals {
   # Determine the name of each Resource Group per scope and location
   resource_group_names_by_scope_and_location = {
     connectivity = {
-      for location in local.connectivity_locations :
+      # for location in local.connectivity_locations :
+      for index, location in local.connectivity_locations :
       location =>
       try(local.custom_settings.azurerm_resource_group["connectivity"][location].name,
-      "${local.resource_prefix}-connectivity-${location}${local.resource_suffix}")
+        # "${local.resource_prefix}-connectivity-${location}${local.resource_suffix}")
+      "rg-connectivity-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
     }
     virtual_wan = {
-      for location in local.virtual_wan_locations :
+      # for location in local.virtual_wan_locations :
+      for index, location in local.virtual_wan_locations :
       location =>
       try(local.custom_settings.azurerm_resource_group["virtual_wan"][location].name,
-      "${local.resource_prefix}-connectivity${local.resource_suffix}")
+        # "${local.resource_prefix}-connectivity${local.resource_suffix}")
+      "rg-vwan-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
     }
     ddos = {
       (local.ddos_location) = try(local.custom_settings.azurerm_resource_group["ddos"][local.ddos_location].name,
-      "${local.resource_prefix}-ddos${local.resource_suffix}")
+        # "${local.resource_prefix}-ddos${local.resource_suffix}")
+      "rg-ddos-${local.ddos_location}-001")
     }
     dns = {
       (local.dns_location) = try(local.custom_settings.azurerm_resource_group["dns"][local.dns_location].name,
-      "${local.resource_prefix}-dns${local.resource_suffix}")
+        # "${local.resource_prefix}-dns${local.resource_suffix}")
+      "rg-dns-${local.dns_location}-001")
     }
   }
   # Generate a map of settings for each Resource Group per scope and location
@@ -323,7 +329,8 @@ locals {
 locals {
   ddos_resource_group_id = local.resource_group_config_by_scope_and_location["ddos"][local.ddos_location].resource_id
   ddos_protection_plan_name = try(local.custom_settings.azurerm_network_ddos_protection_plan["ddos"][local.ddos_location].name,
-  "${local.resource_prefix}-ddos-${local.ddos_location}${local.resource_suffix}")
+    # "${local.resource_prefix}-ddos-${local.ddos_location}${local.resource_suffix}")
+  "ddos-connectivity-${local.ddos_location}-001")
   ddos_protection_plan_resource_id = coalesce(
     local.existing_ddos_protection_plan_resource_id,
     "${local.ddos_resource_group_id}/providers/Microsoft.Network/ddosProtectionPlans/${local.ddos_protection_plan_name}"
@@ -346,10 +353,12 @@ locals {
 #  - azurerm_virtual_network
 locals {
   virtual_network_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_virtual_network["connectivity"][location].name,
-    "${local.resource_prefix}-hub-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-hub-${location}${local.resource_suffix}")
+    "hub-vnet-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_network_resource_group_id = {
     for location in local.hub_network_locations :
@@ -466,10 +475,12 @@ locals {
 #  - azurerm_virtual_network_gateway (ExpressRoute)
 locals {
   er_gateway_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_virtual_network_gateway["connectivity_expressroute"][location].name,
-    "${local.resource_prefix}-ergw-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-ergw-${location}${local.resource_suffix}")
+    "ergw-vnet-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   er_gateway_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -482,10 +493,12 @@ locals {
     "${local.er_gateway_resource_id_prefix[location]}/${local.er_gateway_name[location]}"
   }
   er_gateway_pip_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_public_ip["connectivity_expressroute"][location].name,
-    "${local.er_gateway_name[location]}-pip")
+      # "${local.er_gateway_name[location]}-pip")
+    "pip-ergw-${local.er_gateway_name[location]}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   er_gateway_pip_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -570,10 +583,12 @@ locals {
 #  - azurerm_virtual_network_gateway (VPN)
 locals {
   vpn_gateway_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_virtual_network_gateway["connectivity_vpn"][location].name,
-    "${local.resource_prefix}-vpngw-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-vpngw-${location}${local.resource_suffix}")
+    "vpngw-vnet-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   vpn_gateway_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -586,16 +601,20 @@ locals {
     "${local.vpn_gateway_resource_id_prefix[location]}/${local.vpn_gateway_name[location]}"
   }
   vpn_gateway_pip_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_public_ip["connectivity_vpn"][location].name,
-    "${local.vpn_gateway_name[location]}-pip")
+      # "${local.vpn_gateway_name[location]}-pip")
+    "pip-vpngw-${local.vpn_gateway_name[location]}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   vpn_gateway_pip_2_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_public_ip["connectivity_vpn_2"][location].name,
-    "${local.vpn_gateway_name[location]}-pip2")
+      # "${local.vpn_gateway_name[location]}-pip2")
+    "pip2-vpngw-${local.vpn_gateway_name[location]}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   vpn_gateway_pip_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -776,10 +795,12 @@ locals {
 # For VWAN, VPN gateway is required for Security Partner Provider integration
 locals {
   azfw_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_firewall["connectivity"][location].name,
-    "${local.resource_prefix}-fw-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-fw-${location}${local.resource_suffix}")
+    "fw-connectivity-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   azfw_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -808,10 +829,12 @@ locals {
     length(local.azfw_zones[location]) > 0
   }
   azfw_policy_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_firewall_policy["connectivity"][location].name,
-    "${local.azfw_name[location]}-policy")
+      # "${local.azfw_name[location]}-policy")
+    "policy-${local.azfw_name[location]}")
   }
   azfw_policy_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -824,10 +847,12 @@ locals {
     "${local.azfw_policy_resource_id_prefix[location]}/${local.azfw_policy_name[location]}"
   }
   azfw_pip_name = {
-    for location in local.hub_network_locations :
+    # for location in local.hub_network_locations :
+    for index, location in local.hub_network_locations :
     location =>
     try(local.custom_settings.azurerm_public_ip["connectivity_firewall"][location].name,
-    "${local.azfw_name[location]}-pip")
+      # "${local.azfw_name[location]}-pip")
+    "pip-${local.azfw_name[location]}")
   }
   azfw_pip_resource_id_prefix = {
     for location in local.hub_network_locations :
@@ -840,10 +865,12 @@ locals {
     "${local.azfw_pip_resource_id_prefix[location]}/${local.azfw_pip_name[location]}"
   }
   virtual_hub_azfw_name = {
-    for location in local.virtual_hub_locations :
+    # for location in local.virtual_hub_locations :
+    for index, location in local.virtual_hub_locations :
     location =>
     try(local.custom_settings.azurerm_firewall["virtual_wan"][location].name,
-    "${local.resource_prefix}-fw-hub-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-fw-hub-${location}${local.resource_suffix}")
+    "hubfw-connectivity-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_hub_azfw_resource_id_prefix = {
     for location in local.virtual_hub_locations :
@@ -856,10 +883,12 @@ locals {
     "${local.virtual_hub_azfw_resource_id_prefix[location]}/${local.virtual_hub_azfw_name[location]}"
   }
   virtual_hub_azfw_policy_name = {
-    for location in local.virtual_hub_locations :
+    # for location in local.virtual_hub_locations :
+    for index, location in local.virtual_hub_locations :
     location =>
     try(local.custom_settings.azurerm_firewall_policy["virtual_wan"][location].name,
-    "${local.virtual_hub_azfw_name[location]}-policy")
+      # "${local.virtual_hub_azfw_name[location]}-policy")
+    "policy-${local.virtual_hub_azfw_name[location]}")
   }
   virtual_hub_azfw_policy_resource_id_prefix = {
     for location in local.virtual_hub_locations :
@@ -1060,10 +1089,12 @@ locals {
 # scope of the connectivity child module.
 locals {
   virtual_wan_name = {
-    for location in local.virtual_wan_locations :
+    # for location in local.virtual_wan_locations :
+    for index, location in local.virtual_wan_locations :
     location =>
     try(local.custom_settings.azurerm_virtual_wan["virtual_wan"][location].name,
-    "${local.resource_prefix}-vwan-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-vwan-${location}${local.resource_suffix}")
+    "vwan-connectivity-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_wan_resource_group_id = {
     for location in local.virtual_wan_locations :
@@ -1104,10 +1135,12 @@ locals {
 #  - azurerm_virtual_hub
 locals {
   virtual_hub_name = {
-    for location in local.virtual_hub_locations :
+    # for location in local.virtual_hub_locations :
+    for index, location in local.virtual_hub_locations :
     location =>
     try(local.custom_settings.azurerm_virtual_hub["virtual_wan"][location].name,
-    "${local.resource_prefix}-hub-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-hub-${location}${local.resource_suffix}")
+    "vhub-connectivity-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_hub_resource_group_name = {
     for location in local.virtual_hub_locations :
@@ -1169,10 +1202,12 @@ locals {
 #  - azurerm_express_route_gateway
 locals {
   virtual_hub_express_route_gateway_name = {
-    for location in local.virtual_hub_locations :
+    # for location in local.virtual_hub_locations :
+    for index, location in local.virtual_hub_locations :
     location =>
     try(local.custom_settings.azurerm_express_route_gateway["virtual_wan"][location].name,
-    "${local.resource_prefix}-ergw-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-ergw-${location}${local.resource_suffix}")
+    "ergw-vhub-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_hub_express_route_gateway_resource_id_prefix = {
     for location in local.virtual_hub_locations :
@@ -1206,10 +1241,12 @@ locals {
 #  - azurerm_vpn_gateway
 locals {
   virtual_hub_vpn_gateway_name = {
-    for location in local.virtual_hub_locations :
+    # for location in local.virtual_hub_locations :
+    for index, location in local.virtual_hub_locations :
     location =>
     try(local.custom_settings.azurerm_vpn_gateway["virtual_wan"][location].name,
-    "${local.resource_prefix}-vpngw-${location}${local.resource_suffix}")
+      # "${local.resource_prefix}-vpngw-${location}${local.resource_suffix}")
+    "vpngw-vhub-${location}-${index < 9 ? "00${index + 1}" : "0${index + 1}"}")
   }
   virtual_hub_vpn_gateway_resource_id_prefix = {
     for location in local.virtual_hub_locations :

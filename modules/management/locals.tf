@@ -82,7 +82,8 @@ locals {
   resource_group_name = coalesce(
     local.existing_resource_group_name,
     try(local.custom_settings_rsg.name, null),
-    "${local.resource_prefix}-mgmt",
+    # "${local.resource_prefix}-mgmt",
+    "rg-mgmt-${local.location}-001"
   )
   resource_group_resource_id = "/subscriptions/${local.subscription_id}/resourceGroups/${local.resource_group_name}"
   azurerm_resource_group = {
@@ -101,7 +102,7 @@ locals {
     "${local.resource_group_resource_id}/providers/Microsoft.OperationalInsights/workspaces/${local.azurerm_log_analytics_workspace.name}"
   )
   azurerm_log_analytics_workspace = {
-    name                              = try(local.custom_settings_la_workspace.name, "${local.resource_prefix}-la${local.resource_suffix}")
+    name                              = try(local.custom_settings_la_workspace.name, "la-mgmt-${local.location}-001")
     location                          = try(local.custom_settings_la_workspace.location, local.location)
     sku                               = try(local.custom_settings_la_workspace.sku, "PerGB2018")
     retention_in_days                 = try(local.custom_settings_la_workspace.retention_in_days, local.settings.log_analytics.config.retention_in_days)
@@ -153,7 +154,8 @@ locals {
     "${local.resource_group_resource_id}/providers/Microsoft.Automation/automationAccounts/${local.azurerm_automation_account.name}"
   )
   azurerm_automation_account = {
-    name     = try(local.custom_settings_aa.name, "${local.resource_prefix}-automation${local.resource_suffix}")
+    # name     = try(local.custom_settings_aa.name, "${local.resource_prefix}-automation${local.resource_suffix}")
+    name     = try(local.custom_settings_aa.name, "automation-mgmt-${local.location}-001")
     location = try(local.custom_settings_aa.location, local.location)
     sku_name = try(local.custom_settings_aa.sku_name, "Basic")
     identity = try(local.custom_settings_aa.identity, local.empty_list)

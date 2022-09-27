@@ -203,6 +203,50 @@ variable "settings" {
         })
       })
     )
+    shared_service_vnet = object({
+      vnet_prefix = string
+      subnet = object({
+        agw_fe  = string
+        agw_be  = string
+        bastion = string
+      })
+    })
+    waf_config = list(
+      object({
+        name      = string
+        priority  = number
+        rule_type = string
+        match_conditions = list(
+          object({
+            match_variables = object({
+              variable_name = string
+              selector      = string
+            })
+            operator           = string
+            negation_condition = bool
+            match_values       = list(string)
+          })
+        )
+        action = string
+      })
+    )
+    nsg_security_rule = list(
+      object({
+        name                         = string
+        priority                     = number
+        direction                    = string
+        access                       = string
+        protocol                     = string
+        source_port_range            = string
+        source_port_ranges           = list(string)
+        destination_port_range       = string
+        destination_port_ranges      = list(string)
+        source_address_prefix        = string
+        source_address_prefixes      = list(string)
+        destination_address_prefix   = string
+        destination_address_prefixes = list(string)
+      })
+    )
     ddos_protection_plan = object({
       enabled = bool
       config = object({
@@ -268,6 +312,50 @@ variable "settings" {
   default = {
     hub_networks      = []
     vwan_hub_networks = []
+    shared_service_vnet = {
+      vnet_prefix = ""
+      subnet = {
+        agw_fe  = ""
+        agw_be  = ""
+        bastion = ""
+      }
+    }
+    waf_config = [
+      {
+        name      = ""
+        priority  = 101
+        rule_type = "Match"
+        match_conditions = [
+          {
+            match_variables = {
+              variable_name = ""
+              selector      = ""
+            }
+            operator           = ""
+            negation_condition = false
+            match_values       = []
+          }
+        ]
+        action = "Block"
+      }
+    ]
+    nsg_security_rule = [
+      {
+        name                         = "Allow-Any-Outbound"
+        priority                     = 100
+        direction                    = "Outbound"
+        access                       = "Allow"
+        protocol                     = "Tcp"
+        source_port_range            = ""
+        source_port_ranges           = []
+        destination_port_range       = ""
+        destination_port_ranges      = []
+        source_address_prefix        = ""
+        source_address_prefixes      = []
+        destination_address_prefix   = ""
+        destination_address_prefixes = []
+      }
+    ]
     ddos_protection_plan = {
       enabled = false
       config = {

@@ -1,3 +1,10 @@
+locals {
+  waf_config = {
+    for k, v in local.configure_connectivity_resources.settings.waf_config :
+    k => v
+  }
+}
+
 resource "azurerm_resource_group" "virtual_wan" {
   for_each = local.azurerm_resource_group_virtual_wan
 
@@ -359,4 +366,287 @@ resource "azurerm_virtual_hub_connection" "virtual_wan" {
     azurerm_virtual_hub.virtual_wan,
   ]
 
+}
+
+resource "azurerm_virtual_network" "shared_service_vnet" {
+  for_each            = azurerm_resource_group.virtual_wan
+  provider            = azurerm.connectivity
+  name                = "vnet-shared-${local.configure_connectivity_resources.location}-001"
+  location            = local.configure_connectivity_resources.location
+  resource_group_name = each.value.name
+  address_space       = [local.configure_connectivity_resources.settings.shared_service_vnet.vnet_prefix]
+
+  # dynamic "subnet" {
+  #   for_each = local.configure_connectivity_resources.settings.shared_service_vnet.subnet
+  #   content {
+  #     name           = "snet-shared-${local.configure_connectivity_resources.location}-${subnet.key < 9 ? "00${subnet.key + 1}" : "0${subnet.key + 1}"}"
+  #     address_prefix = subnet.value["subnet_prefix"]
+  #   }
+  # }
+
+  tags = local.configure_connectivity_resources.tags
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+    azurerm_virtual_wan.virtual_wan,
+    azurerm_virtual_hub.virtual_wan,
+    azurerm_virtual_hub_connection.virtual_wan
+  ]
+}
+
+resource "azurerm_subnet" "shared_service_subnet" {
+  for_each = {
+    for key, subnet in local.configure_connectivity_resources.settings.shared_service_vnet.subnet :
+    key => subnet
+    if subnet != ""
+  }
+  provider = azurerm.connectivity
+
+  name                 = "snet-${each.key}-${local.configure_connectivity_resources.location}-001"
+  resource_group_name  = [for v in azurerm_resource_group.virtual_wan : v.name][0]
+  virtual_network_name = [for n in azurerm_virtual_network.shared_service_vnet : n.name][0]
+  address_prefixes     = [each.value]
+
+  # delegation {
+  #   name = "delegation"
+
+  #   service_delegation {
+  #     name    = "Microsoft.ContainerInstance/containerGroups"
+  #     actions = ["Microsoft.Network/virtualNetworks/subnets/join/action", "Microsoft.Network/virtualNetworks/subnets/prepareNetworkPolicies/action"]
+  #   }
+  # }
+
+  private_endpoint_network_policies_enabled = true
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+    azurerm_virtual_wan.virtual_wan,
+    azurerm_virtual_hub.virtual_wan,
+    azurerm_virtual_network.shared_service_vnet
+  ]
+}
+
+resource "azurerm_virtual_hub_connection" "vhub_shared" {
+  provider                  = azurerm.connectivity
+  name                      = "peer-shared-${local.configure_connectivity_resources.location}-001"
+  virtual_hub_id            = [for v in azurerm_virtual_hub.virtual_wan : v.id][0]
+  remote_virtual_network_id = [for n in azurerm_virtual_network.shared_service_vnet : n.id][0]
+  internet_security_enabled = true
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+    azurerm_virtual_wan.virtual_wan,
+    azurerm_virtual_hub.virtual_wan,
+    azurerm_virtual_hub_connection.virtual_wan,
+    azurerm_virtual_network.shared_service_vnet,
+    azurerm_subnet.shared_service_subnet
+  ]
+}
+
+resource "azurerm_public_ip" "pip_agw" {
+  provider            = azurerm.connectivity
+  name                = "pip-agw-${local.configure_connectivity_resources.location}-001"
+  resource_group_name = [for v in azurerm_resource_group.virtual_wan : v.name][0]
+  location            = local.configure_connectivity_resources.location
+  sku                 = "Standard"
+  allocation_method   = "Static"
+
+  tags = local.configure_connectivity_resources.tags
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+  ]
+}
+
+resource "azurerm_network_security_group" "shared_service_nsg" {
+  provider            = azurerm.connectivity
+  name                = "nsg-shared-${local.configure_connectivity_resources.location}-001"
+  location            = local.configure_connectivity_resources.location
+  resource_group_name = [for v in azurerm_resource_group.virtual_wan : v.name][0]
+  tags                = local.configure_connectivity_resources.tags
+  dynamic "security_rule" {
+    for_each = local.configure_connectivity_resources.settings.nsg_security_rule
+    content {
+      name                         = security_rule.value["name"]
+      priority                     = security_rule.value["priority"]
+      direction                    = security_rule.value["direction"]
+      access                       = security_rule.value["access"]
+      protocol                     = security_rule.value["protocol"]
+      source_port_range            = security_rule.value["source_port_range"]
+      source_port_ranges           = security_rule.value["source_port_ranges"]
+      destination_port_range       = security_rule.value["destination_port_range"]
+      destination_port_ranges      = security_rule.value["destination_port_ranges"]
+      source_address_prefix        = security_rule.value["source_address_prefix"]
+      source_address_prefixes      = security_rule.value["source_address_prefixes"]
+      destination_address_prefix   = security_rule.value["destination_address_prefix"]
+      destination_address_prefixes = security_rule.value["destination_address_prefixes"]
+    }
+  }
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+    azurerm_virtual_network.shared_service_vnet,
+    azurerm_subnet.shared_service_subnet
+  ]
+}
+
+resource "azurerm_subnet_network_security_group_association" "nsg_association" {
+  for_each                  = azurerm_subnet.shared_service_subnet
+  provider                  = azurerm.connectivity
+  subnet_id                 = each.value.id
+  network_security_group_id = azurerm_network_security_group.shared_service_nsg.id
+  depends_on = [
+    azurerm_network_security_group.shared_service_nsg
+  ]
+}
+resource "azurerm_web_application_firewall_policy" "waf_agw_policies" {
+  provider            = azurerm.connectivity
+  name                = "waf-agw-${local.configure_connectivity_resources.location}-001"
+  resource_group_name = [for v in azurerm_resource_group.virtual_wan : v.name][0]
+  location            = local.configure_connectivity_resources.location
+
+  dynamic "custom_rules" {
+    for_each = local.configure_connectivity_resources.settings.waf_config
+    content {
+      name      = custom_rules.value["name"]
+      priority  = custom_rules.value["priority"]
+      rule_type = custom_rules.value["rule_type"]
+
+      dynamic "match_conditions" {
+        for_each = custom_rules.value["match_conditions"]
+        content {
+          match_variables {
+            variable_name = match_conditions.value["match_variables"].variable_name
+            selector      = match_conditions.value["match_variables"].selector
+          }
+          operator           = match_conditions.value["operator"]
+          negation_condition = match_conditions.value["negation_condition"]
+          match_values       = match_conditions.value["match_values"]
+        }
+      }
+
+      action = custom_rules.value["action"]
+    }
+  }
+  policy_settings {
+    enabled                     = false
+    mode                        = "Prevention"
+    request_body_check          = true
+    file_upload_limit_in_mb     = 100
+    max_request_body_size_in_kb = 128
+  }
+
+  managed_rules {
+    exclusion {
+      match_variable          = "RequestHeaderNames"
+      selector                = "x-company-secret-header"
+      selector_match_operator = "Equals"
+    }
+    exclusion {
+      match_variable          = "RequestCookieNames"
+      selector                = "too-tasty"
+      selector_match_operator = "EndsWith"
+    }
+
+    managed_rule_set {
+      type    = "OWASP"
+      version = "3.2"
+      rule_group_override {
+        rule_group_name = "REQUEST-920-PROTOCOL-ENFORCEMENT"
+        disabled_rules = [
+          "920300",
+          "920440"
+        ]
+      }
+    }
+  }
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan
+  ]
+}
+resource "azurerm_application_gateway" "agw_shared_service" {
+  provider                          = azurerm.connectivity
+  name                              = "agw-shared-${local.configure_connectivity_resources.location}-001"
+  resource_group_name               = [for v in azurerm_resource_group.virtual_wan : v.name][0]
+  location                          = local.configure_connectivity_resources.location
+  force_firewall_policy_association = true
+  firewall_policy_id                = azurerm_web_application_firewall_policy.waf_agw_policies.id
+  waf_configuration {
+    enabled                  = false
+    file_upload_limit_mb     = 100
+    firewall_mode            = "Detection"
+    max_request_body_size_kb = 128
+    request_body_check       = true
+    rule_set_type            = "OWASP"
+    rule_set_version         = "3.2"
+  }
+
+  sku {
+    name = "WAF_v2"
+    tier = "WAF_v2"
+  }
+
+  autoscale_configuration {
+    min_capacity = 0
+    max_capacity = 5
+  }
+
+  gateway_ip_configuration {
+    name      = "config-agw-${local.configure_connectivity_resources.location}-001"
+    subnet_id = azurerm_subnet.shared_service_subnet["agw_fe"].id
+  }
+
+  frontend_port {
+    name = "port-agw_fe-${local.configure_connectivity_resources.location}-001"
+    port = 80
+  }
+
+  frontend_ip_configuration {
+    name                 = "config-agw_fe-${local.configure_connectivity_resources.location}-001"
+    public_ip_address_id = azurerm_public_ip.pip_agw.id
+  }
+
+  backend_address_pool {
+    name = "pool-agw_be-${local.configure_connectivity_resources.location}-001"
+  }
+
+  backend_http_settings {
+    name                  = "config-agw_be-${local.configure_connectivity_resources.location}-001"
+    cookie_based_affinity = "Disabled"
+    port                  = 80
+    protocol              = "Http"
+    request_timeout       = 60
+  }
+
+  http_listener {
+    name                           = "listener-agw_fe-${local.configure_connectivity_resources.location}-001"
+    frontend_ip_configuration_name = "config-agw_fe-${local.configure_connectivity_resources.location}-001"
+    frontend_port_name             = "port-agw_fe-${local.configure_connectivity_resources.location}-001"
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = "rule-agw-${local.configure_connectivity_resources.location}-001"
+    rule_type                  = "Basic"
+    http_listener_name         = "listener-agw_fe-${local.configure_connectivity_resources.location}-001"
+    backend_address_pool_name  = "pool-agw_be-${local.configure_connectivity_resources.location}-001"
+    backend_http_settings_name = "config-agw_be-${local.configure_connectivity_resources.location}-001"
+    priority                   = 1001
+  }
+
+  tags = local.configure_connectivity_resources.tags
+
+  depends_on = [
+    azurerm_resource_group.connectivity,
+    azurerm_resource_group.virtual_wan,
+    azurerm_virtual_network.shared_service_vnet,
+    azurerm_subnet.shared_service_subnet,
+    azurerm_web_application_firewall_policy.waf_agw_policies
+  ]
+}
+
+output "name" {
+
+  value = azurerm_subnet.shared_service_subnet["agw_fe"].name
 }
