@@ -588,7 +588,7 @@ resource "azurerm_application_gateway" "agw_shared_service" {
   }
 
   autoscale_configuration {
-    min_capacity = 0
+    min_capacity = 1
     max_capacity = 5
   }
 

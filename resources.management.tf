@@ -234,7 +234,7 @@ resource "azurerm_monitor_action_group" "global_admin_alert" {
   name                = "GlobalAdminAlert"
   resource_group_name = [for v in azurerm_resource_group.management : v.name][0]
   short_name          = "adminalert"
-  enabled             = true
+  enabled             = false
 
   email_receiver {
     name                    = "sendtoadmin"
@@ -258,7 +258,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "global_admin_login_qu
   name                = "query-login-global-admin"
   resource_group_name = [for v in azurerm_resource_group.management : v.name][0]
   location            = local.configure_management_resources.location
-  enabled             = true
+  enabled             = false
 
   evaluation_frequency = "PT1M"
   window_duration      = "PT1M"
